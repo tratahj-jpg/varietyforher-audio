@@ -33,6 +33,7 @@ jobs:
           : > ids.txt
           for start in 1 151 301 451 601 751 901; do
             curl -fsSL "https://varietyforherfinds.blogspot.com/feeds/posts/default?alt=json&max-results=150&start-index=$start" -o feed.json || break
+            sed -i 's#\\/#/#g' feed.json
             grep -oE 'drive\.google\.com/file/d/[A-Za-z0-9_-]+' feed.json | sed 's#.*/##' >> ids.txt || true
             grep -q '"entry"' feed.json || break
           done
