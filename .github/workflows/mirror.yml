@@ -1,0 +1,66 @@
+name: Mirror Variety for Her voiceovers
+
+# Every 30 minutes: read the blog feed, find Google Drive voiceover files,
+# copy any new ones into a/<driveId>.mp3 and publish them on GitHub Pages.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy new voiceovers from Google Drive
+        id: m
+        run: |
+          mkdir -p a
+          : > ids.txt
+          for start in 1 151 301 451 601 751 901; do
+            curl -fsSL "https://varietyforherfinds.blogspot.com/feeds/posts/default?alt=json&max-results=150&start-index=$start" -o feed.json || break
+            grep -oE 'drive\.google\.com/file/d/[A-Za-z0-9_-]+' feed.json | sed 's#.*/##' >> ids.txt || true
+            grep -q '"entry"' feed.json || break
+          done
+          sort -u ids.txt -o ids.txt
+          echo "Found $(wc -l < ids.txt) voiceovers in the feed"
+          for id in $(cat ids.txt); do
+            [ -s "a/$id.mp3" ] && continue
+            if curl -fsSL "https://drive.usercontent.google.com/download?id=$id&export=download&confirm=t" -o "a/$id.tmp" \
+               && file -b --mime-type "a/$id.tmp" | grep -qE '^(audio|video)/'; then
+              mv "a/$id.tmp" "a/$id.mp3"; echo "added $id"
+            else
+              rm -f "a/$id.tmp"; echo "could not copy $id (is the Drive file shared publicly?)"
+            fi
+          done
+          rm -f feed.json ids.txt
+          touch .nojekyll
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "vfh-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A && git commit -m "Add voiceovers" && git push
+            echo "changed=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/configure-pages@v5
+        if: steps.m.outputs.changed == '1' || github.event_name != 'schedule'
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.m.outputs.changed == '1' || github.event_name != 'schedule'
+        with:
+          path: .
+      - uses: actions/deploy-pages@v4
+        if: steps.m.outputs.changed == '1' || github.event_name != 'schedule'
