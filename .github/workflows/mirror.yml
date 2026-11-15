@@ -1,4 +1,4 @@
-name: Mirror Variety for Her voiceovers
+name: Mirror Variety for Her and Kindly Nested voiceovers
 
 # Every 30 minutes: read the blog feed, find Google Drive voiceover files,
 # copy any new ones into a/<driveId>.mp3 and publish them on GitHub Pages.
@@ -31,11 +31,13 @@ jobs:
         run: |
           mkdir -p a
           : > ids.txt
+          for blog in varietyforherfinds kindlynested; do
           for start in 1 151 301 451 601 751 901; do
-            curl -fsSL "https://varietyforherfinds.blogspot.com/feeds/posts/default?alt=json&max-results=150&start-index=$start" -o feed.json || break
+            curl -fsSL "https://$blog.blogspot.com/feeds/posts/default?alt=json&max-results=150&start-index=$start" -o feed.json || break
             sed -i 's#\\/#/#g' feed.json
             grep -oE 'drive\.google\.com/file/d/[A-Za-z0-9_-]+' feed.json | sed 's#.*/##' >> ids.txt || true
             grep -q '"entry"' feed.json || break
+          done
           done
           sort -u ids.txt -o ids.txt
           echo "Found $(wc -l < ids.txt) voiceovers in the feed"
